@@ -45,10 +45,9 @@ This project provides a **rotary knob + TFT display** for intuitive local contro
 ## 🛠 Hardware  
 
 - ESP32-S3 N16R8 - lesser ESP32's dont have the (PS)RAM to cope with drawing the screen
-- EC11 Rotary encoder with push button  
-- 320×240 TFT display (ILI9341 or similar)
-The above can be bought as a package in AliExpress:
-<img width="1080" height="1440" alt="image" src="https://github.com/user-attachments/assets/273a4873-22d3-46a4-bc8a-1102559305dd" />
+- EC11 Rotary encoder with push button and 320×240 TFT display (ILI9341 or similar)
+         The above can be bought as a package in AliExpress:
+        <img width="1080" height="1440" alt="image" src="https://github.com/user-attachments/assets/273a4873-22d3-46a4-bc8a-1102559305dd" />
 
 - Perfboard, solder, wire
 - 
