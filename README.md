@@ -49,7 +49,7 @@ This project provides a **rotary knob + TFT display** for intuitive local contro
 - 320×240 TFT display (ILI9341 or similar)
 The above can be bought as a package in AliExpress:
 <img width="1080" height="1440" alt="image" src="https://github.com/user-attachments/assets/273a4873-22d3-46a4-bc8a-1102559305dd" />
-
+- Perfboard, solder, wire
 - Temperature sensors (via Home Assistant integration)
 -   I have a ds18b20 temperature probe in the temp port of the hot water tank, connected to an ESP32 that sends the temps to a Home assistant sensor.
 
