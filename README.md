@@ -61,31 +61,28 @@ I was personally going for quick and dirty and mounted the project on a perfboar
   :  and the rotary encoder / TFT screen combo on the other
 then wiring the pins as summarised below
 
-## 🔌 Pinout Summary  
+## 🔌 Pinout (ESP32-S3 DevKitC-1)
 
-| TFT / Encoder Pin        | Pin on ESP32 | Notes |
-|--------------------------|--------------|-------|
-| **Rotary Encoder – A**   | `GPIO32`     | Encoder signal A |
-| **Rotary Encoder – B**   | `GPIO33`     | Encoder signal B |
-| **Rotary Encoder – SW**  | `GPIO25`     | Push button (knob press) |
-| **TFT Display – CS**     | `GPIO5`      | Chip select |
-| **TFT Display – DC**     | `GPIO16`     | Data/Command |
-| **TFT Display – RST**    | `GPIO17`     | Reset |
-| **TFT Display – SCLK**   | `GPIO18`     | SPI Clock |
-| **TFT Display – MOSI**   | `GPIO23`     | SPI Data Out |
-| **TFT Display – BLK**    | `GPIO4`      | Backlight - brightness control |
-| **GND**                  | `GND`        | Common ground |
-| **VCC**                  | `3.3V`       | Power |
+| Component / Signal              | ESP32-S3 GPIO | Notes |
+|---------------------------------|---------------|-------|
+| **Rotary Encoder – A**          | `GPIO2`       | Encoder signal A (INPUT_PULLUP) |
+| **Rotary Encoder – B**          | `GPIO3`       | Encoder signal B (INPUT_PULLUP) |
+| **Rotary Encoder – SW (press)** | `GPIO1`       | Knob push button (INPUT_PULLUP) |
+| **Navigation Button**           | `GPIO4`       | Page advance (INPUT_PULLUP) |
+| **TFT ST7789 – MOSI (DIN/SDA)** | `GPIO11`      | SPI data out to display |
+| **TFT ST7789 – SCLK (CLK/SCK)** | `GPIO12`      | SPI clock |
+| **TFT ST7789 – CS**             | `GPIO10`      | Chip Select |
+| **TFT ST7789 – DC**             | `GPIO9`       | Data/Command |
+| **TFT ST7789 – RST**            | `GPIO8`       | Hardware reset |
+| **TFT Backlight (BLK)**         | `GPIO13`      | LEDC PWM for brightness |
+| **Status LED (onboard)**        | `GPIO48`      | Inverted logic |
+| **Power**                       | `3V3 / GND`   | Common supply/ground |
 
-<img width="1080" height="1440" alt="image" src="https://github.com/user-attachments/assets/0510f5b1-732d-4f53-9c84-9721e91d647f" />
-<img width="1080" height="1440" alt="image" src="https://github.com/user-attachments/assets/fa752fbc-eb3f-45eb-8217-135fe7152822" />
-<img width="1080" height="1440" alt="image" src="https://github.com/user-attachments/assets/5bf27366-2739-4ae8-86aa-fee16963eea6" />
----
-
-⚠️ **Notes**  
-- The encoder button uses an internal pull-up (`internal_pullup: true` in ESPHome).  
-- The TFT runs over **hardware SPI**, so keep `GPIO18` (CLK) and `GPIO23` (MOSI) fixed for performance.  
-- If you want **brightness control**, connect the TFT **LED pin** to a PWM-capable GPIO (e.g. `GPIO4`) instead of 3.3V.  
+**Notes**
+- ST7789 here is **write-only SPI** (no MISO line).
+- Backlight on `GPIO13` uses ESPHome `ledc` → `monochromatic` light for dimming.
+- All buttons use internal pull-ups; wire switches to **ground**.
+- Pin labels on some ST7789 boards: `DIN` = MOSI, `SCL` = SCLK, `DC` = A0, `CS` = CS, `RST` = RES, `BLK/LED` = backlight.
 
 ---
 
