@@ -71,13 +71,11 @@ then wiring the pins as summarised below
 | **TFT ST7789 – DC**             | `GPIO9`       | Data/Command |
 | **TFT ST7789 – RST**            | `GPIO8`       | Hardware reset |
 | **TFT Backlight (BLK)**         | `GPIO13`      | LEDC PWM for brightness |
-| **Status LED (onboard)**        | `GPIO48`      | Inverted logic |
 | **Power**                       | `3V3 / GND`   | Common supply/ground |
 
 **Notes**
 - ST7789 here is **write-only SPI** (no MISO line).
 - Backlight on `GPIO13` uses ESPHome `ledc` → `monochromatic` light for dimming.
-- All buttons use internal pull-ups; wire switches to **ground**.
 - Pin labels on some ST7789 boards: `DIN` = MOSI, `SCL` = SCLK, `DC` = A0, `CS` = CS, `RST` = RES, `BLK/LED` = backlight.
 
 YMMV on how you choose to wire and route everything. 
