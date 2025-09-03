@@ -26,8 +26,6 @@ This project provides a **rotary knob + TFT display** for intuitive local contro
 
 ## 📸 Screenshots  
 
-*(replace with real photos/screens later)*  
-
 - Main temperature page  
   <img width="1080" height="922" alt="image" src="https://github.com/user-attachments/assets/2b285218-b3c6-4d6f-9b8c-42ce44d5ac81" />
 
