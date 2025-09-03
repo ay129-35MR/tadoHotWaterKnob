@@ -1,0 +1,1203 @@
+# ============================================
+# ESPHome Hot Water Controller with Display
+# ============================================
+# This configuration creates a smart hot water controller with:
+# - Rotary encoder for temperature/setting adjustment
+# - ST7789 color display with multiple pages
+# - Integration with Home Assistant for temperature monitoring
+# - Manual control override capabilities
+# - Temperature history graphing
+# - Room status monitoring
+# - Configurable display brightness with sleep mode
+
+esphome:
+  name: your-device-name  # CHANGE: Use your preferred device name (lowercase, no spaces)
+  friendly_name: Your Device Friendly Name  # CHANGE: Human-readable name for UI
+  
+  # Boot sequence - initializes display, loads saved values, shows splash screen
+  on_boot:
+    priority: -100  # Late boot priority ensures all systems ready
+    then:
+      - delay: 2s  # Wait for HA connection to establish
+      - lambda: |-
+          // Start splash screen animation
+          id(show_splash) = true;
+          id(splash_start) = millis();
+
+          // Initialize temperature from Home Assistant or use default
+          if (id(target_temp).has_state()) {
+            id(temp_knob_value) = id(target_temp).state;
+          } else {
+            id(temp_knob_value) = 50.0;  // Default 50°C
+          }
+          
+          // Initialize display brightness at 80%
+          id(brightness_value) = 80.0;
+          id(backlight).turn_on().set_brightness(0.8).perform();
+          
+          // Initialize manual control to OFF position
+          id(manual_selector) = 0;
+          
+          // Sync encoder with temperature value
+          id(rotary_knob).set_value(id(temp_knob_value));
+          
+          // Set activity timers to prevent immediate sleep
+          id(last_activity_time) = millis();
+          id(last_adjustment_time) = millis();
+          
+          ESP_LOGI("boot", "System initialized - Temp: %.1f, Brightness: %.0f percent", 
+                   id(temp_knob_value), id(brightness_value));
+
+# ESP32-S3 board configuration
+esp32:
+  board: esp32-s3-devkitc-1  # Using ESP32-S3 development board
+  framework:
+    type: esp-idf  # Using ESP-IDF framework for better performance
+
+# Enable logging for debugging
+logger:
+
+# Home Assistant API connection with encryption
+api:
+  encryption:
+    key: "YOUR_API_ENCRYPTION_KEY_HERE"  # CHANGE: Generate with 'openssl rand -base64 32'
+
+# Over-the-air updates
+ota:
+  - platform: esphome    
+
+# WiFi configuration
+wifi:
+  ssid: !secret wifi_ssid  # Store in secrets.yaml: wifi_ssid: "YourNetworkName"
+  password: !secret wifi_password  # Store in secrets.yaml: wifi_password: "YourPassword"
+
+  # Fallback access point if WiFi fails
+  ap:
+    ssid: "HotWater Fallback"  # CHANGE: Custom fallback network name
+    password: "CHANGE_ME_12345"  # CHANGE: Strong password (min 8 chars)
+
+# Web server for local control
+web_server:
+  port: 80
+
+# Captive portal for initial setup
+captive_portal:
+
+# ------------------------
+# HARDWARE CONFIGURATION
+# ------------------------
+
+# Disable onboard LED to save power
+status_led:
+  pin:
+    number: GPIO48  # ESP32-S3 onboard LED
+    inverted: true
+
+# Display backlight PWM control
+output:
+  - platform: ledc
+    pin: GPIO13  # CHANGE: Your backlight control pin
+    id: backlight_pwm
+    frequency: 1000Hz
+
+# Backlight as dimmable light entity
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Display Backlight"
+    id: backlight
+    default_transition_length: 250ms
+    restore_mode: RESTORE_AND_ON
+
+# ------------------------
+# TIME SYNCHRONIZATION
+# ------------------------
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+# ------------------------
+# HOME ASSISTANT SENSORS
+# ------------------------
+sensor:
+  # Hot water tank temperature sensor
+  - platform: homeassistant
+    entity_id: sensor.your_hot_water_temp  # CHANGE: Your HA temperature sensor
+    id: hotwater_temp
+    internal: false
+
+  # Room temperature sensors for status display
+  - platform: homeassistant
+    entity_id: sensor.room1_temperature  # CHANGE: Your room 1 temp sensor
+    id: double_room_temp
+    internal: true
+    
+  - platform: homeassistant
+    entity_id: sensor.room2_temperature  # CHANGE: Your room 2 temp sensor
+    id: ensuite_room_temp
+    internal: true
+
+  # Boiler daily runtime counter
+  - platform: homeassistant
+    entity_id: sensor.boiler_daily_runtime  # CHANGE: Your runtime sensor
+    id: boiler_run_time
+    internal: false
+
+  # Rotary encoder for user input
+  - platform: rotary_encoder
+    id: rotary_knob
+    pin_a:
+      number: GPIO2  # CHANGE: Your encoder CLK pin
+      mode: INPUT_PULLUP
+    pin_b:
+      number: GPIO3  # CHANGE: Your encoder DT pin
+      mode: INPUT_PULLUP
+    min_value: -100
+    max_value: 100
+    resolution: 1
+    publish_initial_value: false
+    on_value:
+      then:
+        - lambda: |-
+            // Reset activity timer on any rotation
+            id(last_activity_time) = millis();
+
+            // Wake display if sleeping
+            if (id(is_sleeping)) {
+              id(is_sleeping) = false;
+              auto call = id(backlight).turn_on();
+              call.set_brightness(id(brightness_value) / 100.0);
+              call.perform();
+              ESP_LOGI("sleep", "Waking up from sleep");
+            }
+
+            // Handle rotation based on current page
+            if (id(current_page) == 0) {
+                // Main page: adjust target temperature (35-65°C range)
+                float new_temp = x;
+                if (new_temp < 35) new_temp = 35;
+                if (new_temp > 65) new_temp = 65;
+                id(temp_knob_value) = new_temp;
+                id(rotary_knob).set_value(new_temp);
+                id(last_adjustment_time) = millis();
+
+            } else if (id(current_page) == 1) {
+                // History page: adjust graph time range (10-240 minutes)
+                int new_range = (int)x;
+                if (new_range < 10) new_range = 10;
+                if (new_range > 240) new_range = 240;
+                id(graph_time_range) = new_range;
+                id(rotary_knob).set_value(new_range);
+                ESP_LOGI("graph", "Time range: %d minutes", id(graph_time_range));
+
+            } else if (id(current_page) == 2) {
+                // Manual control: toggle between OFF and HEAT
+                if (x > 0) {
+                    id(manual_selector) = 1;  // HEAT
+                    ESP_LOGI("manual", "Selector changed to: HEAT");
+                } else if (x < 0) {
+                    id(manual_selector) = 0;  // OFF
+                    ESP_LOGI("manual", "Selector changed to: OFF");
+                }
+                id(rotary_knob).set_value(0);  // Reset encoder
+
+            } else if (id(current_page) == 4) {
+                // Display settings: brightness control (10-100%)
+                float new_brightness = x;
+                if (new_brightness < 10) new_brightness = 10;
+                if (new_brightness > 100) new_brightness = 100;
+                id(brightness_value) = new_brightness;
+                id(rotary_knob).set_value(new_brightness);
+
+                if (!id(is_sleeping)) {
+                    auto call = id(backlight).turn_on();
+                    call.set_brightness(new_brightness / 100.0);
+                    call.perform();
+                }
+            }
+
+            // Force display refresh
+            id(my_display).update();
+
+# Target temperature from Home Assistant
+number:
+  - platform: homeassistant
+    entity_id: input_number.hot_water_target_temp  # CHANGE: Your HA target temp entity
+    id: target_temp
+    internal: false
+    on_value:
+      then:
+        - lambda: |-
+            // Sync encoder with HA value (only on main page when not adjusting)
+            if (id(current_page) == 0 && !id(knob_adjusting)) {
+              id(temp_knob_value) = x;
+              id(rotary_knob).set_value(x);
+            }
+
+# Text sensors for status monitoring
+text_sensor:
+  # Water heater operational state
+  - platform: homeassistant
+    entity_id: water_heater.your_water_heater  # CHANGE: Your water heater entity
+    attribute: operation_mode
+    id: heater_state
+    internal: false
+    on_value:
+      then:
+        - lambda: |-
+            // Record time of state change
+            auto time = id(homeassistant_time).now();
+            if (time.is_valid()) {
+              char buffer[20];
+              sprintf(buffer, "%02d:%02d", time.hour, time.minute);
+              id(heater_last_change) = std::string(buffer);
+            }
+            
+            // Sync manual control selector with actual state
+            if (id(current_page) == 2) {
+              id(manual_selector) = (x == "heat") ? 1 : 0;
+            }
+
+  # Room heating states for status display
+  - platform: homeassistant
+    entity_id: climate.room1_thermostat  # CHANGE: Your room 1 climate entity
+    attribute: hvac_action
+    id: double_heating_state
+    internal: true
+    
+  - platform: homeassistant
+    entity_id: climate.room2_thermostat  # CHANGE: Your room 2 climate entity
+    attribute: hvac_action
+    id: ensuite_heating_state
+    internal: true
+
+# ------------------------
+# GLOBAL VARIABLES
+# ------------------------
+# These store state between updates and across reboots
+
+globals:
+  # Last heater state change time
+  - id: heater_last_change
+    type: std::string
+    restore_value: no
+    initial_value: '"Never"'
+  
+  # Current temperature setpoint
+  - id: temp_knob_value
+    type: float
+    restore_value: true  # Persists across reboots
+    initial_value: '50.0'
+  
+  # Display brightness percentage
+  - id: brightness_value
+    type: float
+    restore_value: true
+    initial_value: '80.0'
+  
+  # Flag for pending temperature adjustment
+  - id: knob_adjusting
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  
+  # Current display page (0-4)
+  - id: current_page
+    type: int
+    restore_value: no
+    initial_value: '0'  # 0=main, 1=history, 2=manual, 3=status, 4=display
+  
+  # Manual control selector position
+  - id: manual_selector
+    type: int
+    restore_value: no
+    initial_value: '0'  # 0=OFF, 1=HEAT
+  
+  # Timestamp for manual action confirmation
+  - id: manual_action_time
+    type: unsigned long
+    restore_value: no
+    initial_value: '0'
+  
+  # Activity tracking for sleep mode
+  - id: last_activity_time
+    type: unsigned long
+    restore_value: no
+    initial_value: '0'
+  
+  # Temperature adjustment tracking
+  - id: last_adjustment_time
+    type: unsigned long
+    restore_value: no
+    initial_value: '0'
+  
+  # Sleep mode state
+  - id: is_sleeping
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  
+  # Sleep timeout in milliseconds
+  - id: sleep_timeout_ms
+    type: unsigned long
+    restore_value: no
+    initial_value: '60000'  # 60 seconds
+  
+  # Auto-reset uncommitted adjustments
+  - id: adjustment_reset_ms
+    type: unsigned long
+    restore_value: no
+    initial_value: '30000'  # 30 seconds
+  
+  # Flash memory commit timer
+  - id: commit_flash_time
+    type: unsigned long
+    restore_value: no
+    initial_value: '0'
+  
+  # Brightness preset levels
+  - id: brightness_presets
+    type: std::vector<float>
+    restore_value: no
+    initial_value: '{25.0, 50.0, 75.0, 100.0}'
+  
+  # Current brightness preset index
+  - id: brightness_preset_index
+    type: int
+    restore_value: no
+    initial_value: '2'  # Start at 75%
+  
+  # Color definitions for display
+  - id: col_white
+    type: Color
+    initial_value: "Color(255, 255, 255)"
+  - id: col_grey
+    type: Color
+    initial_value: "Color(170, 170, 170)"
+  - id: col_lightgrey
+    type: Color
+    initial_value: "Color(136, 136, 136)"
+  - id: col_red
+    type: Color
+    initial_value: "Color(255, 60, 60)"
+  - id: col_green
+    type: Color
+    initial_value: "Color(60, 200, 60)"
+  - id: col_yellow
+    type: Color
+    initial_value: "Color(255, 200, 0)"
+  - id: col_blue
+    type: Color
+    initial_value: "Color(80, 180, 255)"
+  - id: col_orange
+    type: Color
+    initial_value: "Color(255, 140, 0)"
+  
+  # Splash screen control
+  - id: show_splash
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+  - id: splash_start
+    type: unsigned long
+    restore_value: no
+    initial_value: '0'
+  - id: splash_timeout_ms
+    type: unsigned long
+    restore_value: no
+    initial_value: '8000'   # 8 seconds
+
+  # Temperature history for graphing
+  - id: temp_history
+    type: float[120]  # 2 hours of data at 1-minute intervals
+    restore_value: no
+  - id: temp_timestamps
+    type: unsigned long[120]
+    restore_value: no
+  - id: history_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: history_index
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: max_history_points
+    type: int
+    restore_value: no
+    initial_value: '120'
+  - id: graph_time_range
+    type: int
+    restore_value: no
+    initial_value: '60'  # Default 60-minute view
+  - id: last_temp_sample
+    type: unsigned long
+    restore_value: no
+    initial_value: '0'
+
+# ------------------------  
+# DATA COLLECTION TIMER
+# ------------------------
+interval:
+  - interval: 60s  # Sample temperature every minute for history graph
+    then:
+      - lambda: |-
+          // Only collect valid temperature data
+          if (!id(hotwater_temp).has_state() || id(hotwater_temp).state <= 0) {
+            return;
+          }
+          
+          float temp = id(hotwater_temp).state;
+          unsigned long now = millis();
+          
+          // Add to circular buffer
+          id(temp_history)[id(history_index)] = temp;
+          id(temp_timestamps)[id(history_index)] = now;
+          
+          // Update circular buffer pointers
+          id(history_index) = (id(history_index) + 1) % id(max_history_points);
+          if (id(history_count) < id(max_history_points)) {
+            id(history_count)++;
+          }
+          
+          id(last_temp_sample) = now;
+          ESP_LOGI("graph", "Sampled temp: %.1f°C (points: %d)", temp, id(history_count));
+
+# ------------------------
+# USER INPUT BUTTONS
+# ------------------------
+binary_sensor:
+  # Encoder push button - confirms actions
+  - platform: gpio
+    id: knob_button
+    pin:
+      number: GPIO1  # CHANGE: Your encoder SW pin
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Knob Button"
+    on_press:
+      then:
+        - lambda: |-
+            // Skip splash screen on press
+            if (id(show_splash)) {
+              id(show_splash) = false;
+              id(my_display).update();
+              return;
+            }
+            
+            // Reset activity timer
+            id(last_activity_time) = millis();
+            
+            // Wake from sleep
+            if (id(is_sleeping)) {
+              id(is_sleeping) = false;
+              auto call = id(backlight).turn_on();
+              call.set_brightness(id(brightness_value) / 100.0);
+              call.perform();
+              ESP_LOGI("sleep", "Waking from knob press");
+              return;
+            }
+            
+            // Page-specific actions
+            if (id(current_page) == 0) {
+              // Main page: commit temperature change
+              float diff = 0.0;
+              if (id(target_temp).has_state()) {
+                diff = abs(id(temp_knob_value) - id(target_temp).state);
+              }
+              
+              if (id(target_temp).has_state() && diff > 0.1) {
+                id(knob_adjusting) = true;
+                id(commit_flash_time) = millis();
+                ESP_LOGI("knob", "Committing temperature: %.1f C", id(temp_knob_value));
+              }
+              
+            } else if (id(current_page) == 2) {
+              // Manual control: confirm selection
+              ESP_LOGI("manual", "Confirming selection: %s", id(manual_selector) == 0 ? "OFF" : "HEAT");
+              id(manual_action_time) = millis();
+              
+            } else if (id(current_page) == 4) {
+              // Display page: cycle brightness presets
+              id(brightness_preset_index) = (id(brightness_preset_index) + 1) % id(brightness_presets).size();
+              float preset = id(brightness_presets)[id(brightness_preset_index)];
+              id(brightness_value) = preset;
+              id(rotary_knob).set_value(preset);
+              
+              auto call = id(backlight).turn_on();
+              call.set_brightness(preset / 100.0);
+              call.perform();
+              
+              ESP_LOGI("display", "Brightness preset: %.0f percent", preset);
+            }
+            
+            id(my_display).update();
+        
+        # Conditional service calls based on page
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 0 && id(target_temp).has_state() && abs(id(temp_knob_value) - id(target_temp).state) > 0.1;'
+            then:
+              # Update Home Assistant with new temperature
+              - homeassistant.service:
+                  service: input_number.set_value
+                  data:
+                    entity_id: input_number.hot_water_target_temp  # CHANGE: Your HA entity
+                    value: !lambda 'return id(temp_knob_value);'
+              - lambda: 'id(knob_adjusting) = false;'
+        
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 2;'
+            then:
+              # Send manual control command to water heater
+              - homeassistant.service:
+                  service: water_heater.set_operation_mode
+                  data:
+                    entity_id: water_heater.your_water_heater  # CHANGE: Your entity
+                    operation_mode: !lambda |-
+                      if (id(manual_selector) == 0) {
+                        return std::string("off");
+                      } else {
+                        return std::string("heat");
+                      }
+  
+  # Navigation button - cycles through pages
+  - platform: gpio
+    id: nav_button
+    pin:
+      number: GPIO4  # CHANGE: Your navigation button pin
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Navigation Button"
+    on_multi_click:
+      # Single press: next page
+      - timing:
+          - ON for at most 500ms
+          - OFF for at least 50ms
+        then:
+          - lambda: |-
+              // Reset activity timer
+              id(last_activity_time) = millis();
+              
+              // Wake from sleep
+              if (id(is_sleeping)) {
+                id(is_sleeping) = false;
+                auto call = id(backlight).turn_on();
+                call.set_brightness(id(brightness_value) / 100.0);
+                call.perform();
+                ESP_LOGI("sleep", "Waking from nav button press");
+                return;
+              }
+              
+              // Cycle through pages (0-4)
+              id(current_page) = (id(current_page) + 1) % 5;
+              
+              // Load appropriate encoder value for new page
+              if (id(current_page) == 0) {
+                // Main page
+                id(rotary_knob).set_value(id(temp_knob_value));
+                ESP_LOGI("nav", "Switched to MAIN page");
+              } else if (id(current_page) == 1) {
+                // History page
+                id(rotary_knob).set_value(id(graph_time_range));
+                ESP_LOGI("nav", "Switched to HISTORY page");
+              } else if (id(current_page) == 2) {
+                // Manual control
+                id(rotary_knob).set_value(0);
+                if (id(heater_state).has_state()) {
+                  id(manual_selector) = (id(heater_state).state == "heat") ? 1 : 0;
+                }
+                ESP_LOGI("nav", "Switched to MANUAL CONTROL page");
+              } else if (id(current_page) == 3) {
+                // Room status
+                ESP_LOGI("nav", "Switched to ROOM STATUS page");              
+              } else if (id(current_page) == 4) {
+                // Display settings
+                id(rotary_knob).set_value(id(brightness_value));
+                ESP_LOGI("nav", "Switched to DISPLAY page");
+              }
+              
+              id(my_display).update();
+      
+      # Long press: return to main page
+      - timing:
+          - ON for at least 1000ms
+        then:
+          - lambda: |-
+              id(last_activity_time) = millis();
+              
+              if (id(is_sleeping)) {
+                id(is_sleeping) = false;
+                auto call = id(backlight).turn_on();
+                call.set_brightness(id(brightness_value) / 100.0);
+                call.perform();
+              }
+              
+              // Jump to main page
+              id(current_page) = 0;
+              id(rotary_knob).set_value(id(temp_knob_value));
+              ESP_LOGI("nav", "Long press - returned to MAIN page");
+              id(my_display).update();
+
+  # Room occupancy sensors for status display
+  - platform: homeassistant 
+    id: double_room_presence 
+    entity_id: binary_sensor.room1_occupancy  # CHANGE: Your room 1 presence sensor
+  - platform: homeassistant 
+    id: double_bath_presence 
+    entity_id: binary_sensor.bathroom1_occupancy  # CHANGE: Your bathroom 1 sensor
+  - platform: homeassistant 
+    id: ensuite_room_presence 
+    entity_id: binary_sensor.room2_occupancy  # CHANGE: Your room 2 presence sensor
+  - platform: homeassistant 
+    id: ensuite_bath_presence 
+    entity_id: binary_sensor.bathroom2_occupancy  # CHANGE: Your bathroom 2 sensor
+
+# ------------------------
+# DISPLAY CONFIGURATION
+# ------------------------
+# SPI bus for ST7789 display
+spi:
+  clk_pin: GPIO12  # CHANGE: Your SPI clock pin
+  mosi_pin: GPIO11  # CHANGE: Your SPI data pin
+
+display:
+  - platform: ili9xxx
+    id: my_display
+    model: ST7789V  # 240x280 color TFT display
+    invert_colors: false
+    cs_pin: GPIO10  # CHANGE: Your chip select pin
+    dc_pin: GPIO9   # CHANGE: Your data/command pin
+    reset_pin: GPIO8  # CHANGE: Your reset pin
+    rotation: 90  # Adjust based on mounting orientation
+    update_interval: 500ms  # Refresh rate
+    
+    # Main display rendering lambda
+    lambda: |-
+        // === SPLASH SCREEN ===
+        #include <math.h>
+
+        if (id(show_splash)) {
+          // Check if system is ready
+          bool ready = false;
+          if (id(hotwater_temp).has_state()) {
+            if (id(hotwater_temp).state > 0.1) {
+              ready = true;
+            }
+          }
+
+          // Black background
+          it.fill(Color(0, 0, 0));
+
+          // Animated flame icon
+          int cx = 40;
+          int cy = 90;
+          it.filled_circle(cx, cy, 35, Color(255,140,0));  // Orange base
+          it.filled_circle(cx, cy-12, 20, Color(255,215,0));  // Yellow inner
+          it.filled_triangle(cx-15, cy-10, cx+15, cy-10, cx, cy-50, Color(255,69,0));  // Red tip
+
+          // Title
+          it.printf(140, 70, id(font_large), id(col_white), TextAlign::LEFT, "Hot Water");
+          it.printf(140, 105, id(font_small), id(col_lightgrey), TextAlign::LEFT, "Connecting...");
+
+          // Animated progress bar
+          int pb_x = 80;
+          int pb_y = 150;
+          int pb_w = 200;
+          int pb_h = 12;
+          int phase = (millis() / 150) % (pb_w+1);
+          it.rectangle(pb_x, pb_y, pb_w, pb_h, id(col_white));
+          it.filled_rectangle(pb_x, pb_y, phase, pb_h, id(col_blue));
+
+          // Loading spinner
+          int sx = 140;
+          int sy = 190;
+          int sr = 15;
+          int dots = 6;
+          int on = (millis() / 200) % dots;
+          for (int i = 0; i < dots; i++) {
+            float theta = (2.0 * 3.14159 * i) / dots;
+            int dx = sx + (int)(cos(theta) * sr);
+            int dy = sy + (int)(sin(theta) * sr);
+            if (i == on) {
+              it.filled_circle(dx, dy, 3, id(col_white));
+            } else {
+              it.filled_circle(dx, dy, 2, id(col_lightgrey));
+            }
+          }
+
+          // Branding
+          it.printf(100, 220, id(font_small), id(col_lightgrey), TextAlign::CENTER, "YourBrand 2025");  # CHANGE
+
+          // Exit splash when ready or timeout
+          if (ready || (millis() - id(splash_start)) > id(splash_timeout_ms)) {
+            id(show_splash) = false;
+            id(my_display).update();
+          }
+
+          return;
+        }
+        
+        // === SLEEP MODE CHECK ===
+        if (!id(is_sleeping) && (millis() - id(last_activity_time)) > id(sleep_timeout_ms)) {
+          id(is_sleeping) = true;
+          id(backlight).turn_off().perform();
+          ESP_LOGI("sleep", "Entering sleep mode after inactivity");
+        }
+        
+        if (id(is_sleeping)) {
+          it.fill(Color(0, 0, 0));
+          return;
+        }
+        
+        // === AUTO-RESET UNCOMMITTED CHANGES ===
+        if (id(current_page) == 0 && id(target_temp).has_state()) {
+          float diff = abs(id(temp_knob_value) - id(target_temp).state);
+          if (diff > 0.1 && (millis() - id(last_adjustment_time)) > id(adjustment_reset_ms)) {
+            id(temp_knob_value) = id(target_temp).state;
+            id(rotary_knob).set_value(id(target_temp).state);
+            ESP_LOGI("reset", "Reset uncommitted temperature");
+          }
+        }
+        
+        // === PAGE RENDERING ===
+        if (id(current_page) == 0) {
+          // MAIN PAGE - Temperature control and status
+          
+          // Labels
+          it.printf(15, 20, id(font_medium), id(col_white), "Hot");
+          it.printf(15, 50, id(font_medium), id(col_white), "Water");
+          it.printf(15, 80, id(font_medium), id(col_white), "Temp");
+          
+          // Current temperature display
+          if (id(hotwater_temp).has_state()) {
+            it.printf(220, 60, id(font_xlarge), id(col_white), TextAlign::CENTER, "%.1f°C", id(hotwater_temp).state);
+          } else {
+            it.printf(220, 60, id(font_xlarge), id(col_lightgrey), TextAlign::CENTER, "--.- C");
+          }
+          
+          // Temperature bar visualization
+          if (id(hotwater_temp).has_state() && id(target_temp).has_state()) {
+            int bar_y = 110;
+            int bar_height = 15;
+            int bar_width = 180;
+            int bar_x = 120;
+            
+            float current = id(hotwater_temp).state;
+            float target = id(target_temp).state;
+            float adjust = id(temp_knob_value);
+            float min_temp = 30.0;
+            float max_temp = 60.0;
+            
+            // Bar outline
+            it.rectangle(bar_x, bar_y, bar_width, bar_height, id(col_white));
+            
+            // Current temp fill
+            int current_pos = (int)((current - min_temp) / (max_temp - min_temp) * bar_width);
+            if (current_pos > 0 && current_pos < bar_width) {
+              it.filled_rectangle(bar_x, bar_y, current_pos, bar_height, id(col_blue));
+            }
+            
+            // Current marker
+            int current_x = bar_x + current_pos;
+            it.filled_circle(current_x, bar_y + bar_height/2, 6, id(col_white));
+            
+            // Target marker
+            int target_x = bar_x + (int)((target - min_temp) / (max_temp - min_temp) * bar_width);
+            it.filled_rectangle(target_x - 3, bar_y - 3, 8, bar_height + 8, id(col_blue));
+            it.printf(target_x, bar_y + 30, id(font_small), id(col_blue), TextAlign::CENTER, "%.0f°C", target);
+            
+            // Adjustment marker (if different from target)
+            if (abs(adjust - target) > 0.1) {
+              int adjust_x = bar_x + (int)((adjust - min_temp) / (max_temp - min_temp) * bar_width);
+              it.rectangle(adjust_x - 4, bar_y - 4, 8, bar_height + 8, id(col_orange));
+              
+              // Flash commit prompt
+              bool flash_on = ((millis() / 500) % 2) == 0;
+              if (flash_on) {
+                it.printf(160, 170, id(font_small), id(col_orange), TextAlign::CENTER, 
+                        "Knob: Set %.0f°C", adjust);
+              }
+            }
+          }
+          
+          // Boiler status with color coding
+          const char* status = "Unknown";
+          auto status_col = id(col_lightgrey);
+          if (id(heater_state).has_state()) {
+            if (id(heater_state).state == "off") {
+              status = "Boiler: OFF";
+              status_col = id(col_green);
+            } else if (id(heater_state).state == "heat") {
+              if (id(hotwater_temp).has_state() && id(target_temp).has_state()) {
+                if (id(hotwater_temp).state >= id(target_temp).state - 0.5) {
+                  status = "Idle at target";
+                  status_col = id(col_yellow);
+                } else {
+                  status = "Boiler: Heating...";
+                  status_col = id(col_red);
+                }
+              } else {
+                status = "Boiler: ON";
+                status_col = id(col_red);
+              }
+            }
+          }
+          it.printf(160, 200, id(font_large), status_col, TextAlign::CENTER, "%s", status);
+          
+          // Runtime and last change info
+          std::string runtime_text = "Run time today: ";
+          if (id(boiler_run_time).has_state()) {
+            char runtime_buffer[20];
+            float minutes = id(boiler_run_time).state;
+            int hours = (int)(minutes / 60);
+            int mins = (int)(minutes) % 60;
+            sprintf(runtime_buffer, "%dh %02dm", hours, mins);
+            runtime_text += std::string(runtime_buffer);
+          } else {
+            runtime_text += "Unknown";
+          }
+          runtime_text += " | Changed: " + id(heater_last_change);
+          
+          it.printf(160, 230, id(font_small), id(col_lightgrey), TextAlign::CENTER, 
+                  "%s", runtime_text.c_str());
+          
+        } else if (id(current_page) == 1) {
+          // HISTORY PAGE - Temperature graph
+          
+          it.printf(160, 15, id(font_medium), id(col_white), TextAlign::CENTER, "Hot Water History");
+          
+          // Status line
+          std::string status_line = "";
+          if (id(hotwater_temp).has_state()) {
+            char temp_buffer[20];
+            sprintf(temp_buffer, "Now: %.1f°C", id(hotwater_temp).state);
+            status_line += std::string(temp_buffer);
+          }
+          
+          char range_buffer[20];
+          sprintf(range_buffer, " | Range: %dmin", id(graph_time_range));
+          status_line += std::string(range_buffer);
+          
+          if (id(heater_state).has_state()) {
+            if (id(heater_state).state == "off") {
+              status_line += " | OFF";
+            } else if (id(heater_state).state == "heat") {
+              status_line += " | HEAT";
+            }
+          }
+          
+          it.printf(160, 40, id(font_small), id(col_white), TextAlign::CENTER, "%s", status_line.c_str());
+          
+          // Highlight HEAT status
+          if (id(heater_state).has_state() && id(heater_state).state == "heat") {
+            it.printf(265, 40, id(font_small), id(col_red), TextAlign::CENTER, "HEAT");
+          }
+          
+          // Graph rendering
+          int graph_x = 30;
+          int graph_y = 60;
+          int graph_w = 260;
+          int graph_h = 140;
+          
+          it.rectangle(graph_x, graph_y, graph_w, graph_h, id(col_white));
+          
+          if (id(history_count) > 0) {
+            // Calculate visible data range
+            unsigned long now = millis();
+            unsigned long cutoff_time = now - ((unsigned long)id(graph_time_range) * 60UL * 1000UL);
+            
+            // Find Y-axis range
+            float min_temp = 100.0;
+            float max_temp = 0.0;
+            int visible_points = 0;
+            
+            for (int i = 0; i < id(history_count); i++) {
+              if (id(temp_timestamps)[i] >= cutoff_time) {
+                float temp = id(temp_history)[i];
+                if (temp < min_temp) min_temp = temp;
+                if (temp > max_temp) max_temp = temp;
+                visible_points++;
+              }
+            }
+            
+            if (visible_points > 0) {
+              // Ensure minimum range
+              if (max_temp - min_temp < 5.0) {
+                float center = (min_temp + max_temp) / 2.0;
+                min_temp = center - 2.5;
+                max_temp = center + 2.5;
+              }
+              
+              // Round to 5°C increments
+              min_temp = ((int)(min_temp / 5.0)) * 5.0;
+              max_temp = ((int)(max_temp / 5.0) + 1) * 5.0;
+              
+              // Y-axis labels and grid
+              for (int temp = (int)min_temp; temp <= (int)max_temp; temp += 5) {
+                if (temp >= min_temp && temp <= max_temp) {
+                  int y = graph_y + graph_h - (int)((temp - min_temp) / (max_temp - min_temp) * graph_h);
+                  
+                  // Dotted grid lines
+                  if (temp != (int)min_temp && temp != (int)max_temp) {
+                    for (int x = graph_x + 10; x < graph_x + graph_w; x += 8) {
+                      it.draw_pixel_at(x, y, id(col_lightgrey));
+                    }
+                  }
+                  
+                  it.printf(graph_x - 5, y, id(font_small), id(col_white), TextAlign::RIGHT, "%d", temp);
+                }
+              }
+              
+              // Plot temperature curve
+              int last_x = -1, last_y = -1;
+              
+              for (int i = 0; i < id(history_count); i++) {
+                if (id(temp_timestamps)[i] >= cutoff_time) {
+                  
+                  // Calculate positions
+                  long time_diff = (long)(now - id(temp_timestamps)[i]);
+                  float time_ratio = (float)time_diff / ((float)id(graph_time_range) * 60.0 * 1000.0);
+                  int x = graph_x + graph_w - (int)(time_ratio * (float)graph_w);
+                  
+                  float temp_ratio = (id(temp_history)[i] - min_temp) / (max_temp - min_temp);
+                  int y = graph_y + graph_h - (int)(temp_ratio * (float)graph_h);
+                  
+                  // Clamp to bounds
+                  if (x < graph_x) x = graph_x;
+                  if (x > graph_x + graph_w) x = graph_x + graph_w;
+                  if (y < graph_y) y = graph_y;
+                  if (y > graph_y + graph_h) y = graph_y + graph_h;
+                  
+                  it.filled_circle(x, y, 1, id(col_blue));
+                  
+                  if (last_x >= 0 && last_y >= 0) {
+                    it.line(last_x, last_y, x, y, id(col_blue));
+                  }
+                  
+                  last_x = x;
+                  last_y = y;
+                }
+              }
+              
+              // Target temperature reference line
+              if (id(target_temp).has_state()) {
+                float target = id(target_temp).state;
+                if (target >= min_temp && target <= max_temp) {
+                  float target_ratio = (target - min_temp) / (max_temp - min_temp);
+                  int target_y = graph_y + graph_h - (int)(target_ratio * (float)graph_h);
+                  
+                  // Dashed line
+                  for (int x = graph_x; x < graph_x + graph_w; x += 6) {
+                    it.draw_pixel_at(x, target_y, id(col_orange));
+                    if (x + 1 < graph_x + graph_w) {
+                      it.draw_pixel_at(x + 1, target_y, id(col_orange));
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Graph info
+            int seconds_ago = (int)((now - id(last_temp_sample)) / 1000UL);
+            it.printf(160, 215, id(font_small), id(col_white), TextAlign::CENTER, 
+                    "Points: %d | Last: %ds ago | Turn: time range", 
+                    visible_points, seconds_ago);
+                    
+          } else {
+            it.printf(160, 120, id(font_medium), id(col_white), TextAlign::CENTER, "Collecting data...");
+            it.printf(160, 150, id(font_small), id(col_white), TextAlign::CENTER, "Please wait");
+          }
+          
+        } else if (id(current_page) == 2) {
+          // MANUAL CONTROL PAGE
+          
+          it.printf(120, 30, id(font_medium), TextAlign::CENTER, "Hot Water Setting:");
+          
+          if (id(hotwater_temp).has_state()) {
+            it.printf(150, 60, id(font_small), TextAlign::CENTER, 
+                    "Hot Water Temp: %.1f C", id(hotwater_temp).state);
+          }
+
+          int off_x = 60;
+          int heat_x = 230;
+          int option_y = 120;
+          
+          // OFF button (inverted if active)
+          bool is_off = id(heater_state).has_state() && id(heater_state).state == "off";
+          if (is_off) {
+            it.filled_rectangle(off_x - 60, option_y - 25, 120, 50, id(col_white));
+            it.print(off_x, option_y, id(font_xlarge), Color(0, 0, 0), TextAlign::CENTER, " OFF ");
+          } else {
+            it.printf(off_x, option_y, id(font_xlarge), id(col_white), TextAlign::CENTER, " OFF ");
+          }
+          
+          // HEAT button (inverted if active)
+          bool is_heat = id(heater_state).has_state() && id(heater_state).state == "heat";
+          if (is_heat) {
+            it.filled_rectangle(heat_x - 80, option_y - 25, 170, 50, id(col_white));
+            it.print(heat_x, option_y, id(font_xlarge), Color(0, 0, 0), TextAlign::CENTER, " HEAT ");
+          } else {
+            it.printf(heat_x, option_y, id(font_xlarge), id(col_white), TextAlign::CENTER, " HEAT ");
+          }
+          
+          // Selection indicator
+          int selector_y = option_y + 40;
+          if (id(manual_selector) == 0) {
+            it.filled_triangle(off_x - 25, selector_y, off_x + 25, selector_y, off_x, selector_y - 15, id(col_white));
+          } else {
+            it.filled_triangle(heat_x - 25, selector_y, heat_x + 25, selector_y, heat_x, selector_y - 15, id(col_white));
+          }
+          
+          // Action confirmation or instructions
+          if (id(manual_action_time) > 0 && (millis() - id(manual_action_time)) < 2000) {
+            it.printf(120, 170, id(font_medium), id(col_white), TextAlign::CENTER, 
+                    "Turning %s", id(manual_selector) == 0 ? "OFF" : "ON heat");
+            if ((millis() - id(manual_action_time)) > 1900) {
+              id(manual_action_time) = 0;
+            }
+          } else {
+            it.printf(150, 200, id(font_small), id(col_white), TextAlign::CENTER, "Turn knob to select");
+            it.printf(150, 220, id(font_small), id(col_white), TextAlign::CENTER, "Press knob to confirm");
+          }
+                   
+        } else if (id(current_page) == 3) {
+          // ROOM STATUS PAGE
+          
+          it.printf(160, 20, id(font_large), id(col_white), TextAlign::CENTER, "Home Status");
+
+          Color active = Color(0xFF, 0xC1, 0x07);  // Home Assistant orange
+          Color inactive = Color(255, 255, 255);
+          Color heating_on = Color(255, 60, 60);
+
+          // Room 1 Block
+          it.printf(80, 60, id(font_medium), id(col_white), TextAlign::CENTER, "Room 1");  # CHANGE
+          
+          if (id(double_room_temp).has_state()) {
+            it.printf(80, 85, id(font_small), id(col_white), TextAlign::CENTER, 
+                      "%.1f°C", id(double_room_temp).state);
+          } else {
+            it.printf(80, 85, id(font_small), id(col_lightgrey), TextAlign::CENTER, "--.-°C");
+          }
+          
+          if (id(double_heating_state).has_state() && 
+              (id(double_heating_state).state == "heating" || id(double_heating_state).state == "heat")) {
+            it.printf(80, 105, id(font_small), heating_on, TextAlign::CENTER, "HEAT");
+          }
+
+          // Room 1 presence icons
+          {
+            int x = 50;
+            int y = 140;
+            bool present = id(double_room_presence).has_state() && id(double_room_presence).state;
+            Color c = present ? active : inactive;
+            it.printf(x, y + 5, id(icon_font), c, TextAlign::CENTER, "\U000F0004");
+            it.printf(x, y + 45, id(font_small), id(col_white), TextAlign::CENTER, "Room");
+          }
+
+          {
+            int x = 110;
+            int y = 140;
+            bool present = id(double_bath_presence).has_state() && id(double_bath_presence).state;
+            Color c = present ? active : inactive;
+            it.printf(x, y + 5, id(icon_font), c, TextAlign::CENTER, "\U000F05D9");
+            it.printf(x, y + 45, id(font_small), id(col_white), TextAlign::CENTER, "Bath");
+          }
+
+          // Room 2 Block
+          it.printf(240, 60, id(font_medium), id(col_white), TextAlign::CENTER, "Room 2");  # CHANGE
+          
+          if (id(ensuite_room_temp).has_state()) {
+            it.printf(240, 85, id(font_small), id(col_white), TextAlign::CENTER, 
+                      "%.1f°C", id(ensuite_room_temp).state);
+          } else {
+            it.printf(240, 85, id(font_small), id(col_lightgrey), TextAlign::CENTER, "--.-°C");
+          }
+          
+          if (id(ensuite_heating_state).has_state() && 
+              (id(ensuite_heating_state).state == "heating" || id(ensuite_heating_state).state == "heat")) {
+            it.printf(240, 105, id(font_small), heating_on, TextAlign::CENTER, "HEAT");
+          }
+
+          // Room 2 presence icons
+          {
+            int x = 210;
+            int y = 140;
+            bool present = id(ensuite_room_presence).has_state() && id(ensuite_room_presence).state;
+            Color c = present ? active : inactive;
+            it.printf(x, y + 5, id(icon_font), c, TextAlign::CENTER, "\U000F0004");
+            it.printf(x, y + 45, id(font_small), id(col_white), TextAlign::CENTER, "Room");
+          }
+
+          {
+            int x = 270;
+            int y = 140;
+            bool present = id(ensuite_bath_presence).has_state() && id(ensuite_bath_presence).state;
+            Color c = present ? active : inactive;
+            it.printf(x, y + 5, id(icon_font), c, TextAlign::CENTER, "\U000F05D9");
+            it.printf(x, y + 45, id(font_small), id(col_white), TextAlign::CENTER, "Bath");
+          }
+          
+        } else if (id(current_page) == 4) {
+          // DISPLAY SETTINGS PAGE
+          
+          it.printf(120, 20, id(font_large), id(col_white), TextAlign::CENTER, "Display Brightness");
+          
+          it.printf(150, 70, id(font_xlarge), id(col_white), TextAlign::CENTER, "%.0f%%", 
+                  id(brightness_value));
+          
+          // Brightness bar
+          int bar_y = 120;
+          int bar_width = 200;
+          int bar_x = 50;
+          it.rectangle(bar_x, bar_y, bar_width, 20, id(col_white));
+          
+          int fill = (int)(bar_width * id(brightness_value) / 100);
+          it.filled_rectangle(bar_x, bar_y, fill, 20, id(col_white));
+          
+          it.printf(150, 160, id(font_small), id(col_white), TextAlign::CENTER, "Presets: 25  50  75  100");
+          it.printf(160, 190, id(font_small), id(col_white), TextAlign::CENTER, "Push knob to cycle presets");
+          it.printf(160, 210, id(font_small), id(col_white), TextAlign::CENTER, "Turn knob to fine tune");
+        }
+        
+        // Navigation footer
+        it.printf(120, 255, id(font_small), id(col_white), TextAlign::CENTER, "[Button: Next]");
+        
+        // Page indicator dots
+        int dot_y = 268;
+        for (int i = 0; i < 5; i++) {
+          if (i == id(current_page)) {
+            it.filled_circle(105 + i * 15, dot_y, 3, id(col_white));
+          } else {
+            it.circle(105 + i * 15, dot_y, 3, id(col_white));
+          }
+        }
+
+# ========= FONTS =========
+# Download these fonts or use your own TrueType fonts
+font:
+  - id: font_xlarge
+    file: "fonts/Roboto_Condensed-Bold.ttf"  # CHANGE: Path to your font file
+    size: 64
+
+  - id: font_large
+    file: "fonts/Roboto_Condensed-Bold.ttf"  # CHANGE: Path to your font file
+    size: 32
+
+  - id: font_medium
+    file: "fonts/Roboto-Bold.ttf"  # CHANGE: Path to your font file
+    size: 28
+
+  - id: font_small
+    file: "fonts/Roboto-Regular.ttf"  # CHANGE: Path to your font file
+    size: 20
+
+  # Material Design Icons for room status page
+  - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"
+    id: icon_font
+    size: 32
+    glyphs: [
+      "\U000F0004",  # mdi:account (person icon)
+      "\U000F05D9",  # mdi:bathtub (bathtub icon)
+    ]
