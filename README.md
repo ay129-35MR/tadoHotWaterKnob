@@ -46,11 +46,10 @@ This project provides a **rotary knob + TFT display** for intuitive local contro
 
 - ESP32-S3 N16R8 - lesser ESP32's dont have the (PS)RAM to cope with drawing the screen
 - EC11 Rotary encoder with push button and 320×240 TFT display (ILI9341 or similar)
-         The above can be bought as a package in AliExpress:
+         These can be bought as a package in AliExpress:
         <img width="1080" height="1440" alt="image" src="https://github.com/user-attachments/assets/273a4873-22d3-46a4-bc8a-1102559305dd" />
 
 - Perfboard, solder, wire
-- 
 - Temperature sensors (via Home Assistant integration)
 - I have a ds18b20 temperature probe in the temp port of the hot water tank, connected to an ESP32 that sends the temps to a Home assistant sensor.
 
@@ -83,6 +82,7 @@ then wiring the pins as summarised below
 - All buttons use internal pull-ups; wire switches to **ground**.
 - Pin labels on some ST7789 boards: `DIN` = MOSI, `SCL` = SCLK, `DC` = A0, `CS` = CS, `RST` = RES, `BLK/LED` = backlight.
 
+YMMV on how you choose to wire and route everything. 
 ---
 
 ## 📦 Installation  
@@ -90,6 +90,6 @@ then wiring the pins as summarised below
 1. Sort out the hardware
 2. Copy the YAML config to your ESPHome project  
 3. Adjust entity IDs to match your Home Assistant setup  
-4. Flash to your ESP32
+4. Flash to your ESP32 and adopt the device in homeassistant
 5. Profit ???
    
