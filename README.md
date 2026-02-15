@@ -1,9 +1,13 @@
+
 # tadoHotWaterKnob
 # 🔥 ESPHome Hot Water & Boiler Controller  
 
 [![ESPHome](https://img.shields.io/badge/ESPHome-2025-blue?logo=esphome)](https://esphome.io/)  
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41BDF5?logo=home-assistant)](https://www.home-assistant.io/)  
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)  
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-ffdd00?logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ay129)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate?business=nyashachipanga%40yahoo.com&currency_code=GBP)
 
 A **smart hot water and boiler controller** built on **ESP32 + ESPHome**, fully integrated with **Home Assistant**.  
 This project provides a **rotary knob + TFT display** for intuitive local control while maintaining complete automation support.  
@@ -89,3 +93,10 @@ YMMV on how you choose to wire and route everything.
 4. Flash to your ESP32 and adopt the device in homeassistant
 5. Profit ???
    
+## Support
+
+If you find this useful:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-ffdd00?logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ay129)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate?business=nyashachipanga%40yahoo.com&currency_code=GBP)
+
