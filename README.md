@@ -12,9 +12,9 @@ A high-performance Smart Hot Water & Boiler Controller built on the ESP32-S3, fe
 This project has evolved from a simple temperature dial into a comprehensive household dashboard, managing hot water, room heating, occupancy tracking, and even security camera snapshots.
 
 <p align="center">
-  <img src="screenshots/hotwaterknob/page0.png" width="300" alt="Main Control">
-  <img src="screenshots/hotwaterknob/page1.png" width="300" alt="Temperature History">
-  <img src="screenshots/hotwaterknob/page2.png" width="300" alt="Guest & Heating Status">
+  <img src="page0.png" width="300" alt="Main Control">
+  <img src="page1.png" width="300" alt="Temperature History">
+  <img src="page2.png" width="300" alt="Guest & Heating Status">
 </p>
 <p align="center">
   <img src="screenshots/hotwaterknob/page3.png" width="300" alt="Camera Snapshots">
