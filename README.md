@@ -28,10 +28,37 @@ This project has evolved from a simple temperature dial into a comprehensive hou
 </p>
 
 ---
+## User Interaction and Navigation
+
+The interface is designed for rapid, one-handed navigation using two physical controls:
+
+- **Navigation Button**: A single press cycles through the 5 main pages (Main, History, Guest, Camera, Display). A long press (1 second) immediately returns the UI to the Main Control page from any other view.
+- **Rotary Encoder**: 
+  - On the **Main Page**, the knob adjusts the target temperature when in adjustment mode, or cycles between the OFF/HEAT/AUTO selectors.
+  - On the **History Page**, rotating the knob changes the time scale of the graph (from 10 minutes to 4 hours).
+  - On the **Camera Page**, it swaps between the available camera feeds.
+  - On the **Display Page**, it fine-tunes the backlight brightness.
+- **Knob Press**: Acts as the "Select" or "Action" button. It confirms temperature adjustments, refreshes camera snapshots, or toggles HVAC modes on the Guest page.
+
+## Display Logic and Rendering
+
+The UI is rendered using ESPHome's native display lambda at a 500ms update interval, ensuring a balance between responsiveness and system stability. 
+
+- **State Management**: The current page and selection states are tracked using internal `globals`. This allows the UI to stay in sync even when Home Assistant updates the underlying entities.
+- **Sleep Mode**: To preserve the display and reduce power, the screen enters a sleep mode after 60 seconds of inactivity. The backlight is disabled via PWM, and the display buffer is cleared. Any interaction with the knob or buttons immediately wakes the device.
+- **Remote Monitoring**: The project includes the `display_screenshot` custom component. This allows the current state of the screen to be captured as a 24-bit BMP and served over the local web server, which was instrumental in capturing the screenshots for this documentation without needing a physical camera.
+
+## Custom Components
+
+This project utilizes a custom ESPHome component, **display_screenshot**, to enable remote UI debugging and the capture of pixel-perfect 24-bit BMPs via HTTP (e.g., `http://192.168.1.142/screenshot?page=0`). This is essential for monitoring the UI without physical access to the device. 
+
+You can integrate this component by pointing your YAML directly to the [esphome-display-screenshot repository](https://github.com/ay129-35MR/esphome-display-screenshot) or by downloading the source and placing it into a `components/display_screenshot` folder within your ESPHome project directory. The provided YAML template includes the necessary configuration for both methods.
+
+---
 
 ## Hardware & Build Context
 
-This is not just a software project; the hardware choices and physical assembly are critical to the performance and reliability of the controller.
+Tado hot water control for anyone in the house without having to whip open the smartphone app or go to the thermostat in the kitchen.  
 
 ### Parts List
 - **Controller**: ESP32-S3 (N16R8). Lesser ESP32s simply do not have the (PS)RAM required to cope with drawing the complex UI, handling image buffers, and maintaining the history graph.
