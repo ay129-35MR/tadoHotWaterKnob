@@ -9,6 +9,9 @@
 
 A high-performance Smart Hot Water & Boiler Controller built on the ESP32-S3, featuring a rich 5-page UI, real-time analytics, and deep integration with Home Assistant and Tado.
 
+  <img src="485289673-2b285218-b3c6-4d6f-9b8c-42ce44d5ac81.png.png" width="300" alt="Main Control">
+
+
 This project has evolved from a simple temperature dial into a comprehensive household dashboard, managing hot water, room heating, occupancy tracking, and even security camera snapshots.
 
 <p align="center">
@@ -17,8 +20,8 @@ This project has evolved from a simple temperature dial into a comprehensive hou
   <img src="page2.png" width="300" alt="Guest & Heating Status">
 </p>
 <p align="center">
-  <img src="screenshots/hotwaterknob/page3.png" width="300" alt="Camera Snapshots">
-  <img src="screenshots/hotwaterknob/page4.png" width="300" alt="Display Settings">
+  <img src="page3.png" width="300" alt="Main Control">
+  <img src="page4.png" width="300" alt="Temperature History">
 </p>
 
 ---
