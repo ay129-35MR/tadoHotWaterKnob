@@ -41,6 +41,8 @@ I opted for a functional, robust prototype build rather than a custom PCB. I mou
 - The Rotary Encoder / TFT Screen combo plugs into the other side.
 - Point-to-point wiring joins the pins, creating a compact "sandwich" that can be easily mounted or serviced.
 
+To finish the desktop build, I crafted a simple but effective stand from a solid piece of wood. I routed a precise slot into the wood at a specific angle, allowing the perfboard motherboard to sit securely within it. This keeps the display at an ideal viewing angle for a TFT screen, preventing the color shift and contrast loss typical of these panels when viewed off-axis.
+
 ### Pinout (ESP32-S3 DevKitC-1)
 
 | Function | GPIO | Notes |
