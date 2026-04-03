@@ -11,9 +11,21 @@
 # - Remote Screenshot debugging component
 
 external_components:
+  # The display_screenshot component is required for remote UI capture and debugging.
+  # GitHub: https://github.com/ay129-35MR/esphome-display-screenshot
+  
+  # OPTION 1: Direct GitHub Integration (Recommended)
   - source:
-      type: local
-      path: components # Includes the display_screenshot component for remote debugging
+      type: git
+      url: https://github.com/ay129-35MR/esphome-display-screenshot
+    components: [ display_screenshot ]
+
+  # OPTION 2: Local Component (If downloaded manually)
+  # To use this, create a 'components' folder in your project and save the 
+  # display_screenshot repo there as 'display_screenshot'.
+  # - source:
+  #     type: local
+  #     path: components 
 
 esphome:
   name: hotwaterknob # CHANGE: Your preferred device name
