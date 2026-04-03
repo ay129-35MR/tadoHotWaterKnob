@@ -8,14 +8,12 @@
 [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate?business=nyashachipanga%40yahoo.com&currency_code=GBP)
 
 A high-performance Smart Hot Water & Boiler Controller built on the ESP32-S3, featuring a rich 5-page UI, real-time analytics, and deep integration with Home Assistant and Tado.
-
-  
+ 
 <p align="center">
   <img src="485289673-2b285218-b3c6-4d6f-9b8c-42ce44d5ac81.png" width="300" alt="Temp Screen v1">
   <img src="IMG_7204.png" width="300" alt="Temp Screen v1">
   <img src="IMG_7205.jpeg" height="300" width="300" alt="history">
 </p>
-
 
 This project has evolved from a simple temperature dial into a comprehensive household dashboard, managing hot water, room heating, occupancy tracking, and even security camera snapshots.
 
@@ -50,6 +48,12 @@ I opted for a functional, robust prototype build rather than a custom PCB. I mou
 - Point-to-point wiring joins the pins, creating a compact "sandwich" that can be easily mounted or serviced.
 
 To finish the desktop build, I crafted a simple but effective stand from a solid piece of wood. I routed a precise slot into the wood at a specific angle, allowing the perfboard motherboard to sit securely within it. This keeps the display at an ideal viewing angle for a TFT screen, preventing the color shift and contrast loss typical of these panels when viewed off-axis.
+
+<p align="center">
+  <img src="7207.jpeg" width="300" alt="Temp Screen v1">
+  <img src="7208.jpeg" width="300" alt="Temp Screen v1">
+  <img src="7209.jpeg" height="300" width="300" alt="history">
+</p>
 
 ### Pinout (ESP32-S3 DevKitC-1)
 
