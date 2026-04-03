@@ -11,7 +11,7 @@ A high-performance Smart Hot Water & Boiler Controller built on the ESP32-S3, fe
  
 <p align="center">
   <img src="485289673-2b285218-b3c6-4d6f-9b8c-42ce44d5ac81.png" width="300" alt="Temp Screen v1">
-  <img src="IMG_7204.png" width="300" alt="Temp Screen v1">
+  <img src="IMG_7204.png" height="300" width="300" alt="Temp Screen v1">
   <img src="IMG_7205.jpeg" height="300" width="300" alt="history">
 </p>
 
